@@ -168,7 +168,14 @@ def convert_matrix(agents_time_matrix, action): #action here is in the form of t
         i += action[cate]
     return task_agent_time_matrix.tolist()
 
-
+def enumerate_normal_form_actions(POI_num):
+    l = list(range(POI_num))
+    actions = []
+    for i in range(len(l)+1):
+        for subset in combinations(l, i):
+            if len(subset)>0:
+                actions.append(list(subset))
+    return actions
 if __name__ == "__main__":
     cate_num = 3
     agent_num = 10
@@ -176,7 +183,7 @@ if __name__ == "__main__":
     task_per_POI = 8
     homotopy_time_list = []
     repeat_time = 1
-    for POI_num in range(30, 31, 2):
+    for POI_num in range(20, 21, 2):
         time_bound = int(5*POI_num/2)
         temp_time = 0
         for fre in range(repeat_time):
@@ -189,8 +196,40 @@ if __name__ == "__main__":
                 for j in range(cate_num):
                     agent_cate_matrix[i][j] = random.randint(1, 10)
             original_capacity = [time_bound] * agent_num
+            t1 = time.time()
             for i in range(POI_num):
                 compact_form_stra.append(random.random())
+            all_actions = enumerate_normal_form_actions(POI_num)
+            #print(all_actions)
+            unassigned_matrix = np.zeros((POI_num, cate_num), dtype = int)
+            feasible_normal_actions = []
+            for ac in  all_actions:
+                prob_vector = compact_form_stra.copy()
+                unassigned_matrix = np.zeros((POI_num, cate_num), dtype = int)
+                capacity = original_capacity.copy()
+                for row in ac:
+                    unassigned_matrix[row] = POI_cate_matrix[row]
+                #print(unassigned_matrix)
+                utility_matrix = utility_matrix_fixed(POI_cate_matrix, prob_vector)
+                final_assignment = assign(unassigned_matrix, prob_vector, agent_cate_matrix, capacity, list(range(agent_num)), utility_matrix)
+                #print(final_assignment)
+                #print(final_assignment.sum())
+                #print("------------------------")
+                if final_assignment.sum() >= len(ac)*task_per_POI:
+                    feasible_normal_actions.append(ac)
+        column_size = len(feasible_normal_actions)
+        A = np.zeros((POI_num, column_size), dtype=int)
+        for col in range(column_size):
+            for ro in feasible_normal_actions[col]:
+                A[ro][col] = 1
+        c = np.ones(column_size)
+        B = np.array(compact_form_stra)
+        sol = optimize.linprog(c, A_ub = np.multiply(A, -1), b_ub = np.multiply(B, -1))
+        x = sol.get('x')
+        t2  = time.time()
+    print(x)
+    print("Time: ", t2-t1)
+    '''
             t1 = time.time()
             valid_actions, x, lam = homotopy(POI_cate_matrix, compact_form_stra, agent_cate_matrix, original_capacity)
             t2 = time.time()
@@ -201,4 +240,5 @@ if __name__ == "__main__":
             print("Homotopy time: ", t2-t1)
             temp_time += (t2-t1)
         homotopy_time_list.append(temp_time/repeat_time)
-    print(homotopy_time_list)
+    '''
+    #print(homotopy_time_list)

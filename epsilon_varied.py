@@ -88,7 +88,7 @@ def update(compact_form, row_actions, x):
             updated_c[i] -= x[acti]
     return updated_c
 
-def homotopy(POI_cate_matrix, compact_form_stra, agent_cate_matrix, original_capacity):
+def homotopy(POI_cate_matrix, compact_form_stra, agent_cate_matrix, original_capacity, epsilon):
     
     row_actions = []
     lam = []
@@ -103,7 +103,7 @@ def homotopy(POI_cate_matrix, compact_form_stra, agent_cate_matrix, original_cap
     #####################################
 
     row_actions.append(current_row_act)
-    current_lam = current_value - 0.01
+    current_lam = current_value - epsilon
     lam.append(current_lam)
     A = overlap_POI(row_actions, row_actions)
     A = np.array(A)
@@ -119,7 +119,7 @@ def homotopy(POI_cate_matrix, compact_form_stra, agent_cate_matrix, original_cap
     #print("prob_vector: ", prob_vector)
     #print("compact form stra: ", compact_form_stra)
     #print(row_actions)
-    while (len(lam) == 0 or lam[-1] >= 0.1):
+    while (len(lam) == 0 or lam[-1] >= epsilon):
         
         #############################################################
         current_row_act = max_normal_form_action(POI_cate_matrix, prob_vector, agent_cate_matrix, original_capacity, list(range(agent_num)))
@@ -129,7 +129,7 @@ def homotopy(POI_cate_matrix, compact_form_stra, agent_cate_matrix, original_cap
 
         ###########################################################
         if in_row_actions == False:
-            current_lam = current_value-0.01
+            current_lam = current_value-epsilon
             lam.append(current_lam)
             if sorted(current_row_act) not in row_actions:
                 row_actions.append(sorted(current_row_act))
@@ -172,13 +172,22 @@ def convert_matrix(agents_time_matrix, action): #action here is in the form of t
 if __name__ == "__main__":
     cate_num = 3
     agent_num = 10
-    POI_num = 30
+    POI_num = 20
     task_per_POI = 8
     homotopy_time_list = []
-    repeat_time = 1
-    for POI_num in range(30, 31, 2):
+    repeat_time = 5
+    approx_ratio = []
+    for i in range(5):
+        approx_ratio.append(1/(10**i))
+    file1 = open("data_epsilon", "w")
+    file1.write("Running time with epsilon varied \n")
+    file1.close()
+    for epsilon in approx_ratio:
         time_bound = int(5*POI_num/2)
         temp_time = 0
+        file1 = open("data_epsilon", "a")
+        file1.write("\n" + str(epsilon) + ": ")
+        file1.close()
         for fre in range(repeat_time):
             POI_cate_matrix, num_per_cate = generate_POI_0(cate_num, POI_num, task_per_POI)
             POI_cate_matrix = np.array(POI_cate_matrix)
@@ -192,7 +201,7 @@ if __name__ == "__main__":
             for i in range(POI_num):
                 compact_form_stra.append(random.random())
             t1 = time.time()
-            valid_actions, x, lam = homotopy(POI_cate_matrix, compact_form_stra, agent_cate_matrix, original_capacity)
+            valid_actions, x, lam = homotopy(POI_cate_matrix, compact_form_stra, agent_cate_matrix, original_capacity, epsilon)
             t2 = time.time()
             print("valid_actions:", valid_actions)
             print("solution:", x)
@@ -200,5 +209,11 @@ if __name__ == "__main__":
             print("lam:", lam)
             print("Homotopy time: ", t2-t1)
             temp_time += (t2-t1)
+            t3 = t2-t1
+            file1 = open("data_epsilon", "a")
+            file1.write(str(t3)+", ")
+            file1.close()
         homotopy_time_list.append(temp_time/repeat_time)
+        file1 = open("data_epsilon", "a")
+        file1.write("\n avg time: " +str(temp_time/repeat_time))
     print(homotopy_time_list)

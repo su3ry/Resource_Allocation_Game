@@ -172,13 +172,19 @@ def convert_matrix(agents_time_matrix, action): #action here is in the form of t
 if __name__ == "__main__":
     cate_num = 3
     agent_num = 10
-    POI_num = 30
+    POI_num = 20
     task_per_POI = 8
     homotopy_time_list = []
-    repeat_time = 1
-    for POI_num in range(30, 31, 2):
-        time_bound = int(5*POI_num/2)
+    repeat_time = 10
+    file1 = open("data0", "w")
+    file1.write("Running time of SWING with varied agent number\n")
+    file1.close()
+    for agent_num in range(2, 21, 2):
+        time_bound = int(5*POI_num*task_per_POI/20)
         temp_time = 0
+        file1 = open("data0", "a")
+        file1.write("\n" + str(agent_num) + ": ")
+        file1.close()
         for fre in range(repeat_time):
             POI_cate_matrix, num_per_cate = generate_POI_0(cate_num, POI_num, task_per_POI)
             POI_cate_matrix = np.array(POI_cate_matrix)
@@ -200,5 +206,13 @@ if __name__ == "__main__":
             print("lam:", lam)
             print("Homotopy time: ", t2-t1)
             temp_time += (t2-t1)
+            t3 = t2-t1
+            file1 = open("data0", "a")
+            file1.write(str(t3) + ", ")
+            file1.close()
         homotopy_time_list.append(temp_time/repeat_time)
+        file1 = open("data0", "a")
+        temp_data = temp_time/repeat_time
+        file1.write("\navg time: "+str(temp_data))
+        file1.close()
     print(homotopy_time_list)
