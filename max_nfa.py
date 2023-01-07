@@ -48,7 +48,7 @@ def dynamic_programming(values, weights, capacity): ## This is a subprotocol for
                     assignments[i][j] = temp
                     matrix[i][j] = matrix[i-1][j-weights[i]]+values[i]
     #print(n, capacity)
-    print(matrix)
+    #print(matrix)
     return matrix[n-1][capacity-1], assignments[n-1][capacity-1]
 
 def values(probability_vector, task_nums):
@@ -74,14 +74,6 @@ def weight_matrix2d(time_matrices): # Join the vul_num individual agent_num * ta
             temp.extend(time_matrices[j][i])
         agent_task_time_matrix.append(temp)
     return agent_task_time_matrix # This is the agent_num * total_task_num time matrix
-
-def con_values(GAP_task_values, task_nums): # GAP_task_values is the output of function values(), extend it to total_task_num long
-    vul_num = len(GAP_task_values)
-    total_value_list = []
-    for i in range(vul_num):
-        for j in range(task_nums[i]):
-            total_value_list.append(GAP_task_values[i])
-    return total_value_list # This is the total_task_num-dimensional vector where each entry is the value to assign that task
 
 def minimize_decreased_values(weights, values, lower_bound):
     n = len(values)
@@ -127,6 +119,7 @@ def initial_assign(time_matrix, capacity, agent_order, values_long):
     assignment = np.zeros((len(time_matrix), len(time_matrix[0])), dtype = int)
     vals = values_long.copy()
     for i in agent_order:
+        #print(i, len(time_matrix), agent_order)
         weights = time_matrix[i].copy()
         max_value, indi_assignment = dynamic_programming(vals, weights, capacity[i])
         for j in range(len(indi_assignment)):
@@ -147,34 +140,35 @@ def reassign_value(current_assignment, time_matrix, capacity, task_nums, values_
             uncovered_tasks_in_the_vul.append(i)
     
 
-    all_agents_weights = []
-    all_agents_values = []
+    #all_agents_weights = []
+    #all_agents_values = []
     uncovered_vuls.remove(the_vul)
 
-    available_agents = []
+    #available_agents = []
+    '''
     for the_agent in range(agent_num):
         we, va = extract_unfixed_assignment(the_agent, current_assignment, uncovered_vuls, task_nums, values_long, time_matrix)
         if len(we) > 0:
             available_agents.append(the_agent)
         all_agents_weights.append(we)
         all_agents_values.append(va)
-    
+    '''
     total_decreased_value = 0
-    print("Uncovered tasks in the vul, ", uncovered_tasks_in_the_vul)
+    #print("Uncovered tasks in the vul, the vul", uncovered_tasks_in_the_vul, the_vul)
     new_assignment = current_assignment.copy()
     for j in uncovered_tasks_in_the_vul:
         assigns = []
         decreased_values = []
+        slack = compute_slack(new_assignment, time_matrix, capacity)
         the_task = sum(task_nums[:the_vul])+j
         for k in range(agent_num):
             lower_bound = time_matrix[k][the_task] - slack[k]
-                
+            we, va = extract_unfixed_assignment(k, new_assignment, uncovered_vuls, task_nums, values_long, time_matrix)    
             if lower_bound <= 0:
-                print(decreased_values, "---------")
                 decreased_values.append(0)
-                assigns.append([0]*len(all_agents_weights[k]))
-            elif k in available_agents:
-                decreased_value, temp_assign = minimize_decreased_values(all_agents_weights[k], all_agents_values[k], lower_bound)
+                assigns.append([0]*len(we))
+            elif len(we)>0:
+                decreased_value, temp_assign = minimize_decreased_values(we, va, lower_bound)
                 assigns.append(temp_assign)
                 decreased_values.append(decreased_value)
             else:
@@ -182,10 +176,10 @@ def reassign_value(current_assignment, time_matrix, capacity, task_nums, values_
                 assigns.append([])
         temp_min = min(decreased_values)
         if temp_min == MAXIMUM:
-            print("--------------------")
+            #print("Skip this vul, ", the_vul)
             return 1, 0, current_assignment
         ind = decreased_values.index(temp_min)
-        print("Decreased values: ", decreased_values)
+        #print("Decreased values, the vul: ", decreased_values, the_vul)
         temp_unassign = assigns[ind]
         total_decreased_value -= temp_min
         total_decreased_value += values_long[the_task]
@@ -236,27 +230,68 @@ def covered_vul(current_assignment, task_nums):
     covered_vuls = []
     uncovered_vuls = []
     divided_assignment = []
+    #print(len(current_assignment))
     while cur_vul < vul_num:
         task_assignment_vul = []
         for j in range(cur_task, cur_task+task_nums[cur_vul]):
             assigned = 0
+            #print(j, task_nums)
             for i in range(agent_num):
+                #print(i, j, len(current_assignment), len(current_assignment[0]))
                 assigned += current_assignment[i][j]
             task_assignment_vul.append(assigned)
         divided_assignment.append(task_assignment_vul)
-        if sum(task_assignment_vul) == task_nums[cur_vul]:
+        #print(task_assignment_vul)
+        if sum(task_assignment_vul) >= task_nums[cur_vul]:
             covered_vuls.append(cur_vul)
         else:
             uncovered_vuls.append(cur_vul)
-        print(task_assignment_vul)
         cur_task += task_nums[cur_vul]
         cur_vul += 1
     return covered_vuls, uncovered_vuls, divided_assignment
         
+def max_normal_form_action(time_matrix, values_long, capacity, agent_order, task_nums):
+
+    agent_num = len(agent_order)
+    vul_num = len(task_nums)
+
+    current_assignment = initial_assign(time_matrix, capacity, agent_order, values_long)
+
+    covered_vuls, uncovered_vuls, divided_assignment = covered_vul(current_assignment, task_nums)
+    #print(uncovered_vuls)
+
+    while len(uncovered_vuls)>0:
+        all_decreased_values = []
+        unused_vuls = []
+        candidate_vuls = []
+        candidate_assignments = []
+        for i in uncovered_vuls:
+            slack = compute_slack(current_assignment, time_matrix, capacity)
+            indicator, total_decreased_value, temp_assignment = reassign_value(current_assignment, time_matrix, capacity, task_nums, values_long, i)
+            if indicator == 1:
+                unused_vuls.append(i)
+            else:
+                candidate_vuls.append(i)
+                all_decreased_values.append(total_decreased_value)
+                candidate_assignments.append(temp_assignment)
+        if len(candidate_vuls) == 0:
+            break
+        #print(all_decreased_values)
+        max_update = max(all_decreased_values)
+        max_ind = all_decreased_values.index(max_update)
+        current_assignment = candidate_assignments[max_ind]
+        covered_vuls = covered_vul(current_assignment, task_nums)[0]
+        uncovered_vuls.remove(candidate_vuls[max_ind])
+        for j in unused_vuls:
+            uncovered_vuls.remove(j)
+        if candidate_vuls[max_ind] not in covered_vuls:
+            print("Assignment not consistent!")
+            sys.exit(1)
+    return covered_vuls
 
 if __name__ == "__main__":
-    vul_num = 3
-    agent_num = 2
+    vul_num = 10
+    agent_num = 5
     task_nums = []
     prob_vector = []
     for i in range(vul_num):
@@ -270,16 +305,17 @@ if __name__ == "__main__":
         time_matrices.append(temp_m)
     for i in range(vul_num):
         prob_vector.append(random.random())
-    capacity = [20]*agent_num
     time_matrix = weight_matrix2d(time_matrices)
+    total_time_needed = (np.array(time_matrix).sum()/agent_num)/(3.5*agent_num)
+    capacity = [int(total_time_needed)]*agent_num
     agent_order = range(agent_num)
     values_long = values(prob_vector, task_nums)
     #values_long = con_values(vals, task_nums)
     
-    print(time_matrix)
+    #print(time_matrix)
     test_assign = initial_assign(time_matrix, capacity, agent_order, values_long)
-    print(test_assign)
+    #print(test_assign)
     covered_vuls, uncovered_vuls, di = covered_vul(test_assign, task_nums)
-    print("Uncovered vuls: ", uncovered_vuls)
-    print(reassign_value(test_assign, time_matrix, capacity, task_nums, values_long, uncovered_vuls[0]))
-    
+    #print("Uncovered vuls: ", uncovered_vuls)
+    #print(reassign_value(test_assign, time_matrix, capacity, task_nums, values_long, uncovered_vuls[0]))
+    print(max_normal_form_action(time_matrix, values_long, capacity, agent_order, task_nums))
